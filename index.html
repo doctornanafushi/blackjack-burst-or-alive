@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Blackjack - Burst or Alive</title>
+<style>
+  :root {
+    --purple: #9945FF;
+    --green: #14F195;
+    --bg: #0d0818;
+    --panel: #1a1030;
+    --text: #f3ecff;
+    --red: #ff4d6d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    background: radial-gradient(circle at 20% 0%, rgba(153,69,255,.35), transparent 50%),
+                radial-gradient(circle at 80% 100%, rgba(20,241,149,.2), transparent 50%),
+                var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #app { width: 100%; max-width: 520px; padding: 14px 14px 28px; }
+  header { text-align: center; margin-bottom: 12px; }
+  h1 {
+    margin: 4px 0 10px;
+    font-size: clamp(24px, 7vw, 34px);
+    letter-spacing: .02em;
+    background: linear-gradient(90deg, var(--purple), var(--green));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .stats { display: flex; gap: 10px; }
+  .stat {
+    flex: 1; background: var(--panel); border: 1px solid rgba(153,69,255,.5);
+    border-radius: 12px; padding: 8px 10px;
+  }
+  .stat .label { font-size: 12px; opacity: .7; }
+  .stat .value { font-size: 26px; font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+  .stat.time .value.low { color: var(--red); }
+  .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); margin: 10px 0 14px; overflow: hidden; }
+  .bar > div { height: 100%; width: 100%; background: linear-gradient(90deg, var(--purple), var(--green)); transition: width .25s linear; }
+
+  .rule { font-size: 12px; line-height: 1.5; opacity: .75; text-align: center; margin-bottom: 12px; }
+  .rule b { color: var(--green); }
+
+  .zone {
+    background: var(--panel); border-radius: 16px; padding: 12px;
+    margin-bottom: 12px; border: 2px solid transparent; transition: border-color .2s;
+  }
+  .zone.active { border-color: var(--purple); box-shadow: 0 0 18px rgba(153,69,255,.45); }
+  .zone.win { border-color: var(--green); box-shadow: 0 0 18px rgba(20,241,149,.45); }
+  .zone.lose { border-color: var(--red); }
+  .zone-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .zone-head .name { font-weight: 700; }
+  .zone-head .total { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .zone-head .total.bust { color: var(--red); }
+  .zone-head .tag { font-size: 12px; opacity: .8; margin-left: 6px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 6px; min-height: 66px; }
+  .card {
+    width: 46px; height: 66px; border-radius: 8px;
+    background: linear-gradient(160deg, #fff, #e8dcff);
+    color: #2a1550; font-size: 24px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+    animation: pop .25s ease-out;
+  }
+  .card::after { content: "★"; position: absolute; top: 2px; right: 4px; font-size: 9px; color: var(--purple); }
+  .card::before { content: "★"; position: absolute; bottom: 2px; left: 4px; font-size: 9px; color: var(--green); }
+  @keyframes pop { from { transform: scale(.4) translateY(-10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .message {
+    min-height: 48px; text-align: center; font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+  }
+  .actions { display: flex; gap: 10px; }
+  button {
+    flex: 1; font-size: 18px; font-weight: 800; padding: 16px 10px; border: none;
+    border-radius: 14px; cursor: pointer; font-family: inherit; touch-action: manipulation;
+    transition: transform .08s, opacity .2s;
+  }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  #hit { background: var(--purple); color: #fff; }
+  #stand { background: var(--green); color: #12002b; }
+  #next, #again {
+    background: linear-gradient(90deg, var(--purple), var(--green)); color: #12002b;
+  }
+  #finish { background: transparent; color: var(--text); border: 2px solid rgba(153,69,255,.7); flex: 0 0 38%; font-size: 15px; }
+
+  .mode { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px; font-size: 14px; font-weight: 700; }
+  .switch { position: relative; width: 52px; height: 30px; display: inline-block; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .slider { position: absolute; inset: 0; background: rgba(255,255,255,.18); border-radius: 15px; cursor: pointer; transition: background .2s; }
+  .slider::before { content: ""; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch input:checked + .slider { background: var(--purple); }
+  .switch input:checked + .slider::before { transform: translateX(22px); background: var(--green); }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .hidden { display: none !important; }
+
+  #overlay {
+    position: fixed; inset: 0; background: rgba(8,3,18,.88);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; z-index: 10;
+  }
+  #overlay h2 { font-size: 30px; margin: 0 0 6px; color: var(--green); }
+  #overlay p { margin: 4px 0; font-size: 18px; }
+  #overlay .big { font-size: 56px; font-weight: 900; color: var(--purple); margin: 6px 0 18px; }
+  #overlay button { flex: none; width: 220px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Blackjack - Burst or Alive</h1>
+    <div class="stats">
+      <div class="stat"><div class="label">スコア</div><div class="value" id="score">0</div></div>
+      <div class="stat time"><div class="label">残り時間</div><div class="value" id="time">60</div></div>
+    </div>
+  </header>
+
+  <div class="bar" id="bar"><div id="timebar"></div></div>
+
+  <div class="mode">
+    <span>タイマー</span>
+    <label class="switch">
+      <input type="checkbox" id="timer-toggle" checked>
+      <span class="slider"></span>
+    </label>
+    <span id="mode-label">ON（60秒）</span>
+  </div>
+
+  <div class="rule">
+    カードは1〜10がランダムに配られます。<br>
+    手札の合計が<b>21以上になったら負け</b>。20以下で大きい方が勝ち。<br>
+    先攻・後攻は毎ラウンド交代するので公平です。
+  </div>
+
+  <div class="zone" id="zone-cpu">
+    <div class="zone-head">
+      <div><span class="name">CPU</span><span class="tag" id="cpu-tag"></span></div>
+      <div class="total" id="cpu-total">0</div>
+    </div>
+    <div class="cards" id="cpu-cards"></div>
+  </div>
+
+  <div class="zone" id="zone-player">
+    <div class="zone-head">
+      <div><span class="name">あなた</span><span class="tag" id="player-tag"></span></div>
+      <div class="total" id="player-total">0</div>
+    </div>
+    <div class="cards" id="player-cards"></div>
+  </div>
+
+  <div class="message" id="message"></div>
+
+  <div class="actions" id="actions">
+    <button id="hit">ヒット（引く）</button>
+    <button id="stand">スタンド（止める）</button>
+  </div>
+  <div class="actions hidden" id="next-actions">
+    <button id="next">次のラウンド</button>
+    <button id="finish" class="hidden">ゲームを終える</button>
+  </div>
+</div>
+
+<div id="overlay" class="hidden">
+  <h2>ゲーム終了！</h2>
+  <p>最終スコア</p>
+  <div class="big" id="final-score">0</div>
+  <p id="final-detail"></p>
+  <button id="again">もう一度</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TOTAL_TIME = 60;      // 秒
+  var WIN_POINTS = 10;
+  var BUST_LIMIT = 21;      // 21以上で負け
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    score: $("score"), time: $("time"), bar: $("timebar"),
+    cpuCards: $("cpu-cards"), plCards: $("player-cards"),
+    cpuTotal: $("cpu-total"), plTotal: $("player-total"),
+    cpuTag: $("cpu-tag"), plTag: $("player-tag"),
+    zoneCpu: $("zone-cpu"), zonePl: $("zone-player"),
+    msg: $("message"), actions: $("actions"), nextActions: $("next-actions"),
+    hit: $("hit"), stand: $("stand"), next: $("next"),
+    overlay: $("overlay"), finalScore: $("final-score"), finalDetail: $("final-detail"),
+    again: $("again"),
+    barBox: $("bar"), toggle: $("timer-toggle"), modeLabel: $("mode-label"),
+    finish: $("finish")
+  };
+  var timerOn = true;
+
+  var score, timeLeft, timer, round, wins, losses, draws;
+  var player, cpu;          // { cards: [], done: bool }
+  var firstMover;           // "player" | "cpu"
+  var phase;                // "player" | "cpu" | "result" | "over"
+  var cpuTimeout = null;
+
+  // 無限デッキ（復元抽出）：毎回 1〜10 を等確率で引く → 両者に完全に公平
+  function draw() { return Math.floor(Math.random() * 10) + 1; }
+  function sum(h) { return h.cards.reduce(function (a, b) { return a + b; }, 0); }
+
+  function renderHand(h, container, totalEl) {
+    container.innerHTML = "";
+    h.cards.forEach(function (v) {
+      var d = document.createElement("div");
+      d.className = "card";
+      d.textContent = v;
+      container.appendChild(d);
+    });
+    var t = sum(h);
+    totalEl.textContent = t;
+    totalEl.classList.toggle("bust", t >= BUST_LIMIT);
+  }
+
+  function render() {
+    renderHand(player, el.plCards, el.plTotal);
+    renderHand(cpu, el.cpuCards, el.cpuTotal);
+    el.score.textContent = score;
+    if (timerOn) {
+      el.time.textContent = Math.max(0, Math.ceil(timeLeft));
+      el.time.classList.toggle("low", timeLeft <= 10);
+      el.bar.style.width = Math.max(0, (timeLeft / TOTAL_TIME) * 100) + "%";
+    } else {
+      el.time.textContent = "∞";
+      el.time.classList.remove("low");
+    }
+  }
+
+  function applyMode() {
+    el.barBox.classList.toggle("hidden", !timerOn);
+    el.finish.classList.toggle("hidden", timerOn);
+    el.modeLabel.textContent = timerOn ? "ON（" + TOTAL_TIME + "秒）" : "OFF（時間無制限）";
+  }
+
+  function setTags() {
+    el.plTag.textContent = firstMover === "player" ? "（先攻）" : "（後攻）";
+    el.cpuTag.textContent = firstMover === "cpu" ? "（先攻）" : "（後攻）";
+  }
+
+  function setActive(who) {
+    el.zonePl.classList.toggle("active", who === "player");
+    el.zoneCpu.classList.toggle("active", who === "cpu");
+  }
+
+  function showButtons(canAct) {
+    el.actions.classList.remove("hidden");
+    el.nextActions.classList.add("hidden");
+    el.hit.disabled = !canAct;
+    el.stand.disabled = !canAct;
+  }
+
+  function startRound() {
+    clearTimeout(cpuTimeout);
+    round++;
+    player = { cards: [draw(), draw()], done: false };
+    cpu = { cards: [draw(), draw()], done: false };
+    firstMover = round % 2 === 1 ? "player" : "cpu";
+    el.zonePl.classList.remove("win", "lose");
+    el.zoneCpu.classList.remove("win", "lose");
+    setTags();
+    render();
+    nextTurn();
+  }
+
+  function nextTurn() {
+    if (phase === "over") return;
+    var order = firstMover === "player" ? ["player", "cpu"] : ["cpu", "player"];
+    var who = !(order[0] === "player" ? player : cpu).done ? order[0]
+            : !(order[1] === "player" ? player : cpu).done ? order[1] : null;
+
+    if (who === null) { finishRound(); return; }
+
+    if (who === "player") {
+      phase = "player";
+      setActive("player");
+      el.msg.textContent = "あなたの番：ヒット or スタンド";
+      showButtons(true);
+    } else {
+      phase = "cpu";
+      setActive("cpu");
+      el.msg.textContent = "CPU の番…";
+      showButtons(false);
+      cpuTimeout = setTimeout(cpuAct, 800);
+    }
+  }
+
+  // CPU は人間と同じ情報（互いの手札は公開）で、確率計算だけで判断する
+  function cpuAct() {
+    if (phase !== "cpu") return;
+    var t = sum(cpu);
+    var pt = sum(player);
+    var bustChance = Math.max(0, Math.min(10, 10 - (BUST_LIMIT - t) + 1)) / 10; // 次の1枚で21以上になる確率
+    var wantDraw;
+    if (player.done) {
+      // 相手が止まっている：勝つために必要な分だけ攻める（引き分け以下なら引く）
+      wantDraw = t <= pt && bustChance < 0.9;
+    } else {
+      // 相手が未行動（CPU が先攻）：標準的なリスク管理
+      wantDraw = t < 12 || (t < 16 && bustChance <= 0.5);
+    }
+    if (wantDraw) {
+      cpu.cards.push(draw());
+      render();
+      if (sum(cpu) >= BUST_LIMIT) { cpu.done = true; el.msg.textContent = "CPU がバースト！"; }
+      cpuTimeout = setTimeout(nextTurn, 700);
+    } else {
+      cpu.done = true;
+      el.msg.textContent = "CPU はスタンド";
+      cpuTimeout = setTimeout(nextTurn, 600);
+    }
+  }
+
+  function onHit() {
+    if (phase !== "player") return;
+    player.cards.push(draw());
+    render();
+    if (sum(player) >= BUST_LIMIT) {
+      player.done = true;
+      el.msg.textContent = "バースト！";
+      showButtons(false);
+      cpuTimeout = setTimeout(nextTurn, 700);
+    }
+  }
+
+  function onStand() {
+    if (phase !== "player") return;
+    player.done = true;
+    showButtons(false);
+    nextTurn();
+  }
+
+  function finishRound() {
+    phase = "result";
+    setActive(null);
+    var p = sum(player), c = sum(cpu);
+    var pb = p >= BUST_LIMIT, cb = c >= BUST_LIMIT;
+    var result; // "win" | "lose" | "draw"
+    if (pb && cb) result = "draw";
+    else if (pb) result = "lose";
+    else if (cb) result = "win";
+    else if (p > c) result = "win";
+    else if (p < c) result = "lose";
+    else result = "draw";
+
+    if (result === "win") {
+      score += WIN_POINTS; wins++;
+      el.zonePl.classList.add("win"); el.zoneCpu.classList.add("lose");
+      el.msg.textContent = "勝ち！ +" + WIN_POINTS + " ポイント";
+    } else if (result === "lose") {
+      losses++;
+      el.zonePl.classList.add("lose"); el.zoneCpu.classList.add("win");
+      el.msg.textContent = "負け…";
+    } else {
+      draws++;
+      el.msg.textContent = "引き分け";
+    }
+    render();
+    el.actions.classList.add("hidden");
+    el.nextActions.classList.remove("hidden");
+  }
+
+  function tick() {
+    timeLeft -= 0.25;
+    if (timeLeft <= 0) { timeLeft = 0; endGame(); return; }
+    el.time.textContent = Math.ceil(timeLeft);
+    el.time.classList.toggle("low", timeLeft <= 10);
+    el.bar.style.width = (timeLeft / TOTAL_TIME * 100) + "%";
+  }
+
+  function endGame() {
+    phase = "over";
+    clearInterval(timer);
+    clearTimeout(cpuTimeout);
+    render();
+    el.finalScore.textContent = score;
+    el.finalDetail.textContent = wins + "勝 " + losses + "敗 " + draws + "分";
+    el.overlay.classList.remove("hidden");
+  }
+
+  function startGame() {
+    clearInterval(timer);
+    clearTimeout(cpuTimeout);
+    score = 0; timeLeft = TOTAL_TIME; round = 0; wins = 0; losses = 0; draws = 0;
+    el.overlay.classList.add("hidden");
+    phase = "player";
+    applyMode();
+    startRound();
+    if (timerOn) timer = setInterval(tick, 250);
+  }
+
+  el.hit.addEventListener("click", onHit);
+  el.stand.addEventListener("click", onStand);
+  el.next.addEventListener("click", function () { if (phase === "result") startRound(); });
+  el.again.addEventListener("click", startGame);
+  el.finish.addEventListener("click", function () { if (phase === "result") endGame(); });
+  el.toggle.addEventListener("change", function () {
+    timerOn = el.toggle.checked;
+    startGame(); // モードを切り替えたら最初からやり直し
+  });
+
+  startGame();
+})();
+</script>
+</body>
+</html>
