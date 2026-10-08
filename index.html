@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Blackjack - Burst or Alive</title>
+<style>
+  :root {
+    --purple: #9945FF;
+    --green: #14F195;
+    --bg: #0d0818;
+    --panel: #1a1030;
+    --text: #f3ecff;
+    --red: #ff4d6d;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    background: radial-gradient(circle at 20% 0%, rgba(153,69,255,.35), transparent 50%),
+                radial-gradient(circle at 80% 100%, rgba(20,241,149,.2), transparent 50%),
+                var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #app { width: 100%; max-width: 520px; padding: 14px 14px 28px; }
+  header { text-align: center; margin-bottom: 12px; }
+  h1 {
+    margin: 4px 0 10px;
+    font-size: clamp(22px, 6.5vw, 32px);
+    letter-spacing: .02em;
+    background: linear-gradient(90deg, var(--purple), var(--green));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  .stats { display: flex; gap: 10px; }
+  .stat {
+    flex: 1; background: var(--panel); border: 1px solid rgba(153,69,255,.5);
+    border-radius: 12px; padding: 8px 10px;
+  }
+  .stat .label { font-size: 12px; opacity: .7; }
+  .stat .value { font-size: 26px; font-weight: 800; color: var(--green); font-variant-numeric: tabular-nums; }
+  .stat.time .value.low { color: var(--red); }
+  .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.1); margin: 10px 0 14px; overflow: hidden; }
+  .bar > div { height: 100%; width: 100%; background: linear-gradient(90deg, var(--purple), var(--green)); transition: width .25s linear; }
+
+  .mode { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+  .mode .name { min-width: 7.5em; text-align: right; }
+  .mode .state { min-width: 9em; text-align: left; }
+  .switch { position: relative; width: 52px; height: 30px; display: inline-block; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .slider { position: absolute; inset: 0; background: rgba(255,255,255,.18); border-radius: 15px; cursor: pointer; transition: background .2s; }
+  .slider::before { content: ""; position: absolute; width: 24px; height: 24px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
+  .switch input:checked + .slider { background: var(--purple); }
+  .switch input:checked + .slider::before { transform: translateX(22px); background: var(--green); }
+  .switch input:focus-visible + .slider { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .deckrow { display: flex; align-items: center; gap: 14px; margin: 12px 0; }
+  .rule { flex: 1; font-size: 12px; line-height: 1.6; opacity: .8; text-align: center; }
+  .rule b { color: var(--green); }
+  #hidden-note { color: var(--green); font-weight: 700; }
+
+  .zone {
+    background: var(--panel); border-radius: 16px; padding: 12px;
+    margin-bottom: 12px; border: 2px solid transparent; transition: border-color .2s;
+  }
+  .zone.active { border-color: var(--purple); box-shadow: 0 0 18px rgba(153,69,255,.45); }
+  .zone.win { border-color: var(--green); box-shadow: 0 0 18px rgba(20,241,149,.45); }
+  .zone.lose { border-color: var(--red); }
+  .zone-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .zone-head .name { font-weight: 700; }
+  .zone-head .total { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .zone-head .total.bust { color: var(--red); }
+  .zone-head .tag { font-size: 12px; opacity: .8; margin-left: 6px; }
+  .lock {
+    display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+    background: var(--green); color: #12002b; font-size: 12px; font-weight: 800;
+  }
+  .cards { display: flex; flex-wrap: wrap; gap: 6px; min-height: 72px; }
+
+  /* ---- カード ---- */
+  .card {
+    width: 50px; height: 72px; border-radius: 8px; flex: none;
+    position: relative; box-shadow: 0 2px 6px rgba(0,0,0,.45);
+  }
+  .card.face { background: linear-gradient(160deg, #ffffff, #ece3ff); }
+  .card.face.black { color: #2a1550; }
+  .card.face.red { color: #e0245e; }
+  .card .rank { position: absolute; top: 5px; left: 6px; font-size: 16px; font-weight: 800; line-height: 1; }
+  .card .suit { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font-size: 34px; line-height: 1; }
+  .card.back {
+    background: linear-gradient(135deg, var(--purple), #5b2bb5);
+    border: 3px solid #e9dcff;
+  }
+  .card.back::after {
+    content: "★"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--green); font-size: 22px;
+  }
+  #deck { box-shadow: 2px 2px 0 #3b1c6e, 4px 4px 0 #2b1250, 0 6px 10px rgba(0,0,0,.5); }
+
+  .message {
+    min-height: 48px; text-align: center; font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+  }
+  .actions { display: flex; gap: 10px; }
+  button {
+    flex: 1; font-size: 18px; font-weight: 800; padding: 16px 10px; border: none;
+    border-radius: 14px; cursor: pointer; font-family: inherit; touch-action: manipulation;
+    transition: transform .08s, opacity .2s;
+  }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+  #hit { background: var(--purple); color: #fff; }
+  #stand { background: var(--green); color: #12002b; }
+  #next, #again { background: linear-gradient(90deg, var(--purple), var(--green)); color: #12002b; }
+  #finish { background: transparent; color: var(--text); border: 2px solid rgba(153,69,255,.7); flex: 0 0 38%; font-size: 15px; }
+  .hidden { display: none !important; }
+
+  #overlay {
+    position: fixed; inset: 0; background: rgba(8,3,18,.88);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; z-index: 10;
+  }
+  #overlay h2 { font-size: 30px; margin: 0 0 6px; color: var(--green); }
+  #overlay p { margin: 4px 0; font-size: 18px; }
+  #overlay .big { font-size: 56px; font-weight: 900; color: var(--purple); margin: 6px 0 18px; }
+  #overlay button { flex: none; width: 220px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Blackjack - Burst or Alive</h1>
+    <div class="stats">
+      <div class="stat"><div class="label">スコア</div><div class="value" id="score">0</div></div>
+      <div class="stat time"><div class="label">残り時間</div><div class="value" id="time">60</div></div>
+    </div>
+  </header>
+
+  <div class="bar" id="bar"><div id="timebar"></div></div>
+
+  <div class="mode">
+    <span class="name">タイマー</span>
+    <label class="switch">
+      <input type="checkbox" id="timer-toggle" checked>
+      <span class="slider"></span>
+    </label>
+    <span class="state" id="mode-label">ON（60秒）</span>
+  </div>
+  <div class="mode">
+    <span class="name">ディーラーの手札</span>
+    <label class="switch">
+      <input type="checkbox" id="open-toggle" checked>
+      <span class="slider"></span>
+    </label>
+    <span class="state" id="open-label">公開</span>
+  </div>
+
+  <div class="deckrow">
+    <div class="rule">
+      カードは A(=1)〜10 がランダムに配られます。<br>
+      手札の合計が<b>21以上になったら負け</b>。20以下で大きい方が勝ち。<br>
+      先攻・後攻は毎ラウンド交代します。<br>
+      <span id="hidden-note" class="hidden">ディーラーの手札は見えません（ディーラーもあなたの手札を参考にしません）</span>
+    </div>
+    <div id="deck" class="card back"></div>
+  </div>
+
+  <div class="zone" id="zone-cpu">
+    <div class="zone-head">
+      <div><span class="name">ディーラー</span><span class="tag" id="cpu-tag"></span><span class="lock hidden" id="cpu-lock">🔒 ロック</span></div>
+      <div class="total" id="cpu-total">0</div>
+    </div>
+    <div class="cards" id="cpu-cards"></div>
+  </div>
+
+  <div class="zone" id="zone-player">
+    <div class="zone-head">
+      <div><span class="name">あなた</span><span class="tag" id="player-tag"></span></div>
+      <div class="total" id="player-total">0</div>
+    </div>
+    <div class="cards" id="player-cards"></div>
+  </div>
+
+  <div class="message" id="message"></div>
+
+  <div class="actions" id="actions">
+    <button id="hit">ヒット（引く）</button>
+    <button id="stand">スタンド（止める）</button>
+  </div>
+  <div class="actions hidden" id="next-actions">
+    <button id="next">次のラウンド</button>
+    <button id="finish" class="hidden">ゲームを終える</button>
+  </div>
+</div>
+
+<div id="overlay" class="hidden">
+  <h2>ゲーム終了！</h2>
+  <p>最終スコア</p>
+  <div class="big" id="final-score">0</div>
+  <p id="final-detail"></p>
+  <button id="again">もう一度</button>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var TOTAL_TIME = 60;      // 秒
+  var WIN_POINTS = 10;
+  var BUST_LIMIT = 21;      // 21以上で負け
+  var SUITS = ["♠", "♥", "♦", "♣"];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = {
+    score: $("score"), time: $("time"), bar: $("timebar"), barBox: $("bar"),
+    cpuCards: $("cpu-cards"), plCards: $("player-cards"),
+    cpuLock: $("cpu-lock"), cpuTotal: $("cpu-total"), plTotal: $("player-total"),
+    cpuTag: $("cpu-tag"), plTag: $("player-tag"),
+    zoneCpu: $("zone-cpu"), zonePl: $("zone-player"),
+    msg: $("message"), actions: $("actions"), nextActions: $("next-actions"),
+    hit: $("hit"), stand: $("stand"), next: $("next"), finish: $("finish"),
+    overlay: $("overlay"), finalScore: $("final-score"), finalDetail: $("final-detail"),
+    again: $("again"), deck: $("deck"),
+    timerToggle: $("timer-toggle"), modeLabel: $("mode-label"),
+    openToggle: $("open-toggle"), openLabel: $("open-label"), hiddenNote: $("hidden-note")
+  };
+
+  var timerOn = true;       // タイマーのON/OFF
+  var hiddenMode = false;   // true: ディーラーの手札を伏せる
+  var score, timeLeft, timer, round, wins, losses, draws;
+  var player, cpu;          // { cards, els, shown, done, revealed }
+  var firstMover;           // "player" | "cpu"
+  var phase;                // "dealing" | "player" | "cpu" | "resolving" | "result" | "over"
+  var timeouts = [];
+
+  // ---- 予約実行（リスタート時にまとめて取り消せる） ----
+  function later(fn, ms) {
+    var id = setTimeout(function () {
+      var i = timeouts.indexOf(id);
+      if (i >= 0) timeouts.splice(i, 1);
+      fn();
+    }, ms);
+    timeouts.push(id);
+    return id;
+  }
+  function clearLater() { timeouts.forEach(clearTimeout); timeouts = []; }
+
+  // ---- カード ----
+  // 無限デッキ（復元抽出）：毎回 A(1)〜10 を等確率で引く → 両者に完全に公平
+  // 柄（♠♥♦♣）は見た目だけで、強さには影響しない
+  function draw() {
+    return { v: Math.floor(Math.random() * 10) + 1, s: SUITS[Math.floor(Math.random() * 4)] };
+  }
+  function sum(h) { return h.cards.reduce(function (a, c) { return a + c.v; }, 0); }
+  function newHand() { return { cards: [], els: [], shown: 0, done: false, revealed: false }; }
+
+  function fill(d, card) {
+    var red = card.s === "♥" || card.s === "♦";
+    d.className = "card face " + (red ? "red" : "black");
+    d.innerHTML = '<span class="rank">' + (card.v === 1 ? "A" : card.v) + '</span><span class="suit">' + card.s + '</span>';
+  }
+
+  // 山札から手札の位置まで飛ばす
+  function fly(d) {
+    var a = el.deck.getBoundingClientRect(), b = d.getBoundingClientRect();
+    var dx = a.left - b.left, dy = a.top - b.top;
+    d.animate([
+      { transform: "translate(" + dx + "px," + dy + "px) rotate(-25deg) scale(.9)", opacity: 0.3 },
+      { transform: "none", opacity: 1 }
+    ], { duration: 380, easing: "cubic-bezier(.2,.8,.3,1)" });
+  }
+
+  // 裏 → 表にひっくり返す
+  function flip(d, card, cb) {
+    var a1 = d.animate([{ transform: "scaleX(1)" }, { transform: "scaleX(0)" }], { duration: 140, fill: "forwards" });
+    later(function () {
+      a1.cancel();
+      fill(d, card);
+      d.animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 140 });
+      later(function () { if (cb) cb(); }, 140);
+    }, 140);
+  }
+
+  function showTotal(who) {
+    var h = who === "player" ? player : cpu;
+    var t = who === "player" ? el.plTotal : el.cpuTotal;
+    if (who === "cpu" && hiddenMode && !h.revealed) {
+      t.textContent = "?";
+      t.classList.remove("bust");
+      return;
+    }
+    t.textContent = h.shown;
+    t.classList.toggle("bust", h.shown >= BUST_LIMIT);
+  }
+
+  // 1枚配る（山札から飛んできて、必要なら表になる）
+  function dealCard(who, card, delay, done) {
+    later(function () {
+      var h = who === "player" ? player : cpu;
+      h.cards.push(card);
+      var d = document.createElement("div");
+      d.className = "card back";
+      (who === "player" ? el.plCards : el.cpuCards).appendChild(d);
+      h.els.push(d);
+      fly(d);
+      later(function () {
+        if (hiddenMode && who === "cpu") {
+          h.shown += card.v; showTotal(who);
+          if (done) done();
+        } else {
+          flip(d, card, function () {
+            h.shown += card.v; showTotal(who);
+            if (done) done();
+          });
+        }
+      }, 400);
+    }, delay);
+  }
+
+  // ディーラーの伏せ札をオープン
+  function revealCpu(cb) {
+    if (!hiddenMode || cpu.revealed) { later(cb, 300); return; }
+    cpu.revealed = true;
+    cpu.els.forEach(function (d, i) {
+      later(function () { flip(d, cpu.cards[i]); }, i * 180);
+    });
+    later(function () { showTotal("cpu"); cb(); }, cpu.els.length * 180 + 350);
+  }
+
+  // ---- 表示 ----
+  function renderStatus() {
+    el.score.textContent = score;
+    if (timerOn) {
+      el.time.textContent = Math.max(0, Math.ceil(timeLeft));
+      el.time.classList.toggle("low", timeLeft <= 10);
+      el.bar.style.width = Math.max(0, (timeLeft / TOTAL_TIME) * 100) + "%";
+    } else {
+      el.time.textContent = "∞";
+      el.time.classList.remove("low");
+    }
+  }
+
+  function applyMode() {
+    el.barBox.classList.toggle("hidden", !timerOn);
+    el.finish.classList.toggle("hidden", timerOn);
+    el.modeLabel.textContent = timerOn ? "ON（" + TOTAL_TIME + "秒）" : "OFF（時間無制限）";
+    el.openLabel.textContent = hiddenMode ? "非公開（伏せ札）" : "公開";
+    el.hiddenNote.classList.toggle("hidden", !hiddenMode);
+  }
+
+  function setTags() {
+    el.plTag.textContent = firstMover === "player" ? "（先攻）" : "（後攻）";
+    el.cpuTag.textContent = firstMover === "cpu" ? "（先攻）" : "（後攻）";
+  }
+
+  function setActive(who) {
+    el.zonePl.classList.toggle("active", who === "player");
+    el.zoneCpu.classList.toggle("active", who === "cpu");
+  }
+
+  function showButtons(canAct) {
+    el.actions.classList.remove("hidden");
+    el.nextActions.classList.add("hidden");
+    el.hit.disabled = !canAct;
+    el.stand.disabled = !canAct;
+  }
+
+  // ---- ラウンド進行 ----
+  function startRound() {
+    clearLater();
+    round++;
+    player = newHand();
+    cpu = newHand();
+    firstMover = round % 2 === 1 ? "player" : "cpu";
+    el.plCards.innerHTML = "";
+    el.cpuCards.innerHTML = "";
+    el.zonePl.classList.remove("win", "lose");
+    el.zoneCpu.classList.remove("win", "lose");
+    el.cpuLock.classList.add("hidden");
+    setTags();
+    setActive(null);
+    showTotal("player");
+    showTotal("cpu");
+    renderStatus();
+
+    phase = "dealing";
+    showButtons(false);
+    el.msg.textContent = "カードを配っています…";
+
+    dealCard("player", draw(), 0);
+    dealCard("cpu", draw(), 320);
+    dealCard("player", draw(), 640);
+    dealCard("cpu", draw(), 960, function () { later(nextTurn, 250); });
+  }
+
+  function nextTurn() {
+    if (phase === "over") return;
+    var order = firstMover === "player" ? ["player", "cpu"] : ["cpu", "player"];
+    var h0 = order[0] === "player" ? player : cpu;
+    var h1 = order[1] === "player" ? player : cpu;
+    var who = !h0.done ? order[0] : !h1.done ? order[1] : null;
+
+    if (who === null) { finishRound(); return; }
+
+    if (who === "player") {
+      phase = "player";
+      setActive("player");
+      el.msg.textContent = "あなたの番：ヒット or スタンド";
+      showButtons(true);
+    } else {
+      phase = "cpu";
+      setActive("cpu");
+      el.msg.textContent = "ディーラーの番…";
+      showButtons(false);
+      later(cpuAct, 800);
+    }
+  }
+
+  // ディーラーの判断。非公開モードでは、あなたの手札は参考にしない（情報量を揃えて公平に）
+  function cpuAct() {
+    if (phase !== "cpu") return;
+    var t = sum(cpu);
+    var bustChance = Math.max(0, Math.min(10, t - 10)) / 10; // 次の1枚で21以上になる確率
+    var wantDraw;
+    if (!hiddenMode && player.done) {
+      var pt = sum(player);
+      wantDraw = t <= pt && bustChance < 0.9;      // 勝つために必要な分だけ攻める
+    } else {
+      wantDraw = t < 12 || (t < 16 && bustChance <= 0.5);
+    }
+    if (wantDraw) {
+      dealCard("cpu", draw(), 0, function () {
+        if (sum(cpu) >= BUST_LIMIT) {
+          cpu.done = true;
+          el.msg.textContent = "ディーラーがバースト！";
+        }
+        later(nextTurn, 600);
+      });
+    } else {
+      cpu.done = true;
+      el.cpuLock.classList.remove("hidden");
+      el.msg.textContent = hiddenMode
+        ? "ディーラーがロックしました"
+        : "ディーラーがロックしました（" + sum(cpu) + "）";
+      later(nextTurn, 800);
+    }
+  }
+
+  function onHit() {
+    if (phase !== "player") return;
+    phase = "dealing";
+    showButtons(false);
+    dealCard("player", draw(), 0, function () {
+      if (sum(player) >= BUST_LIMIT) {
+        player.done = true;
+        el.msg.textContent = "バースト！";
+        later(nextTurn, 700);
+      } else {
+        phase = "player";
+        showButtons(true);
+      }
+    });
+  }
+
+  function onStand() {
+    if (phase !== "player") return;
+    player.done = true;
+    showButtons(false);
+    nextTurn();
+  }
+
+  function finishRound() {
+    phase = "resolving";
+    setActive(null);
+    showButtons(false);
+    el.msg.textContent = hiddenMode ? "手札をオープン！" : "勝負！";
+    revealCpu(function () {
+      var p = sum(player), c = sum(cpu);
+      var pb = p >= BUST_LIMIT, cb = c >= BUST_LIMIT;
+      var result;
+      if (pb && cb) result = "draw";
+      else if (pb) result = "lose";
+      else if (cb) result = "win";
+      else if (p > c) result = "win";
+      else if (p < c) result = "lose";
+      else result = "draw";
+
+      if (result === "win") {
+        score += WIN_POINTS; wins++;
+        el.zonePl.classList.add("win"); el.zoneCpu.classList.add("lose");
+        el.msg.textContent = "勝ち！ +" + WIN_POINTS + " ポイント";
+      } else if (result === "lose") {
+        losses++;
+        el.zonePl.classList.add("lose"); el.zoneCpu.classList.add("win");
+        el.msg.textContent = "負け…";
+      } else {
+        draws++;
+        el.msg.textContent = "引き分け";
+      }
+      renderStatus();
+      phase = "result";
+      el.actions.classList.add("hidden");
+      el.nextActions.classList.remove("hidden");
+    });
+  }
+
+  // ---- タイマー / 開始 / 終了 ----
+  function tick() {
+    timeLeft -= 0.25;
+    if (timeLeft <= 0) { timeLeft = 0; endGame(); return; }
+    renderStatus();
+  }
+
+  function endGame() {
+    phase = "over";
+    clearInterval(timer);
+    clearLater();
+    renderStatus();
+    el.finalScore.textContent = score;
+    el.finalDetail.textContent = wins + "勝 " + losses + "敗 " + draws + "分";
+    el.overlay.classList.remove("hidden");
+  }
+
+  function startGame() {
+    clearInterval(timer);
+    clearLater();
+    score = 0; timeLeft = TOTAL_TIME; round = 0; wins = 0; losses = 0; draws = 0;
+    el.overlay.classList.add("hidden");
+    applyMode();
+    startRound();
+    if (timerOn) timer = setInterval(tick, 250);
+  }
+
+  el.hit.addEventListener("click", onHit);
+  el.stand.addEventListener("click", onStand);
+  el.next.addEventListener("click", function () { if (phase === "result") startRound(); });
+  el.finish.addEventListener("click", function () { if (phase === "result") endGame(); });
+  el.again.addEventListener("click", startGame);
+  el.timerToggle.addEventListener("change", function () {
+    timerOn = el.timerToggle.checked;
+    startGame(); // モードを切り替えたら最初からやり直し
+  });
+  el.openToggle.addEventListener("change", function () {
+    hiddenMode = !el.openToggle.checked;
+    startGame();
+  });
+
+  startGame();
+})();
+</script>
+</body>
+</html>
